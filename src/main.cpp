@@ -27,7 +27,6 @@ void initializeInputs() {
   selectorSwitch.setDebounceTime(50);
 }
 
-
 /*
   SOUND
 */
@@ -42,13 +41,13 @@ DFRobotDFPlayerMini player;
 const int defaultVol = 30;
 
 // Track assignments
-const int startupSFX = 0001;
-const int finOpenSFX = 0002;
-const int finCloseSFX = 0003;
-const int rotateSFX = 0004;
-const int fire1SFX = 0006;
-const int fire2SFX = 0007;
-const int errorSFX = 0005;
+const int startupSFX = 1;
+const int finOpenSFX = 2;
+const int finCloseSFX = 3;
+const int rotateSFX = 4;
+const int errorSFX = 5;
+const int fire1SFX = 6;
+const int fire2SFX = 7;
 
 // Functions
 void playSFX(int track) {
@@ -155,16 +154,14 @@ const int finDelay = 325;               // Approx delay @ 5V
 
 // Fin Servo Functions
 void finOpen() {
+  playSFX(finOpenSFX);
   finservo.write(finServoMinPos);
-  playSFX(2);
-  digitalWrite(LED_BUILTIN, HIGH);
   delay(finDelay);                           
 }
 
 void finClose() {
+  playSFX(finCloseSFX);
   finservo.write(finServoMaxPos);
-  playSFX(3);
-  digitalWrite(LED_BUILTIN, LOW);
   delay(finDelay);
 }
 
@@ -185,7 +182,7 @@ void rotateHead() {
 
   finOpen();                              // Extends fins to allow for head rotation
 
-  // playSFX(rotateSFX);
+  playSFX(rotateSFX);
   if (currPos == 0) {
     headservo.write(90);
   } else headservo.write(0);
@@ -275,7 +272,7 @@ void fireTrigger () {                     // Initiates firing action, requires t
   if (triggerPrimed) {
     ledsOn(CRGB::Orange);
     finOpen();
-    playSFX(7);
+    playSFX(fire1SFX);
     lasersOff();
     finClose();
     // Slow fade LEDs
@@ -283,7 +280,7 @@ void fireTrigger () {                     // Initiates firing action, requires t
     delay(2000);
     ledsOff();
   } else {
-    playSFX(5);
+    playSFX(errorSFX);
   }
 }
 
