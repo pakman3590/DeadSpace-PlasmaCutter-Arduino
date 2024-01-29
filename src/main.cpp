@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Servo.h>
+#include <ezButton.h>
 #include <FastLED.h>
 #include <DFRobotDFPlayerMini.h>
 #include <SoftwareSerial.h>
@@ -14,11 +15,16 @@ const int trigger2Pin = 7;              // Outer trigger
 const int selectorPin = 6;              // Rotation selector
 
 // Setup Function
+ezButton innerTrigger(trigger1Pin);
+ezButton mainTrigger(trigger2Pin);
+ezButton selectorSwitch(selectorPin);
+
 void initializeInputs() {
   Serial.println(F("Initializing Inputs"));
-  pinMode(trigger1Pin, INPUT_PULLUP);   // Wired as NC
-  pinMode(trigger2Pin, INPUT_PULLUP);   // Wired as NC
-  pinMode(selectorPin, INPUT_PULLUP);   // Wired as NC
+
+  innerTrigger.setDebounceTime(50);
+  mainTrigger.setDebounceTime(50);
+  selectorSwitch.setDebounceTime(50);
 }
 
 
@@ -150,14 +156,14 @@ const int finDelay = 325;               // Approx delay @ 5V
 // Fin Servo Functions
 void finOpen() {
   finservo.write(finServoMinPos);
-  // playSFX(6);
+  playSFX(2);
   digitalWrite(LED_BUILTIN, HIGH);
   delay(finDelay);                           
 }
 
 void finClose() {
   finservo.write(finServoMaxPos);
-  // playSFX(3);
+  playSFX(3);
   digitalWrite(LED_BUILTIN, LOW);
   delay(finDelay);
 }
@@ -288,7 +294,6 @@ void resetTrigger() {
 /*
   MAIN
 */
-
 void setup() {
   Serial.begin(115200);
 
@@ -303,6 +308,11 @@ void setup() {
 }
 
 void loop() {
+  // Buttons
+  innerTrigger.loop();
+  mainTrigger.loop();
+  selectorSwitch.loop();
+  
   // Servo
 
   // DFPlayer
@@ -310,49 +320,18 @@ void loop() {
   //   printDetail(myDFPlayer.readType(), myDFPlayer.read());
   // }
 
-  // Test audio
-  static unsigned long timer = millis();
-  if (millis() - timer > 2000) {
-    timer = millis();
-    player.play(6);
-  }
-
-  int innerTrigger = digitalRead(trigger1Pin);
-  if (innerTrigger == LOW) {
+  if (innerTrigger.isPressed()) {
     primeTrigger();
   }
-  if (innerTrigger == HIGH) {
+  if (innerTrigger.isReleased()) {
     unprimeTrigger();
   }
 
-  int mainTrigger = digitalRead(trigger2Pin);
-  if (mainTrigger == LOW) {
+  if (mainTrigger.isPressed()) {
     fireTrigger();
   }
-  if (mainTrigger == HIGH) {
-    resetTrigger();
-  }
 
-  int selectorSwitch = digitalRead(selectorPin);
-  if (selectorSwitch == LOW) {
+  if (selectorSwitch.isPressed()) {
     rotateHead();
   }
-
-  // digitalWrite(LED_BUILTIN, HIGH);
-  // delay(500);
-  // digitalWrite(LED_BUILTIN, LOW);  
-  // delay(500);
-  // if (innerTrigger == LOW) {
-  //   digitalWrite(LED_BUILTIN, HIGH);
-  // }
-  // if (innerTrigger == HIGH) {
-  //   digitalWrite(LED_BUILTIN, LOW);
-  // }
-
-  // if (mainTrigger == LOW) {
-  //   digitalWrite(LED_BUILTIN, HIGH);
-  // }
-  // if (mainTrigger == HIGH) {
-  //   digitalWrite(LED_BUILTIN, LOW);
-  // }
 }
