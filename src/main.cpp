@@ -3,7 +3,6 @@
 #include <ezButton.h>
 #include <FastLED.h>
 #include <DFRobotDFPlayerMini.h>
-#include <SoftwareSerial.h>
 
 /*
   INPUTS
@@ -32,10 +31,6 @@ void initializeInputs() {
 */
 
 // Definitions
-const byte playerRXPin = 4;
-const byte playerTXPin = 5;
-
-SoftwareSerial playerSerial (playerRXPin, playerTXPin);
 DFRobotDFPlayerMini player;
 
 const int defaultVol = 30;
@@ -56,13 +51,12 @@ void playSFX(int track) {
 
 // Setup Function
 void initializeDFPlayer() {
-  Serial.begin(9600);
-  playerSerial.begin(9600);
+  Serial1.begin(9600);
 
   Serial.println();
   Serial.println(F("Initializing DFPlayer... (May take 3-5 seconds)"));
 
-  if (!player.begin(playerSerial, true, true)) {
+  if (!player.begin(Serial1, true, true)) {
     Serial.println(F("DFPlayer initialization failed"));
     Serial.println(F("1. Please recheck the RX/TX connection"));
     Serial.println(F("2. Please recheck the SD card!"));
@@ -139,7 +133,7 @@ void printDetail(uint8_t type, int value){
 /*
   SERVOS
 
-  This prop uses 2 servo motors, 1 MG90S and 1 DS3218MG, to extend/retract the outer fins and to rotate the whole head respectively.\
+  This prop uses 2 servo motors, 1 MG90S and 1 DS3218MG, to extend/retract the outer fins and to rotate the whole head respectively.
   The MG90S is driven by a digital PWM pin and powered off of the Arduino 5V pin.
   The DS3218MG is driven by a digital PWM pin and powered directly off the 7.4V power from the battery.
 */
