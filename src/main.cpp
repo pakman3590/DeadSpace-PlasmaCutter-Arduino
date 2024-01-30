@@ -141,24 +141,30 @@ void printDetail(uint8_t type, int value){
 // Fin Servo
 Servo finservo;                         // MG90S servo used to actuate retracting fins
 const int finServoPin = 9;
-const int finServoMinPos = 0;           
-const int finServoMaxPos = 165;
+const int finExtendedPos = 0;           
+const int finRetractedPos = 165;
 
 const int finDelay = 325;               // Approx delay @ 5V
 
 // Fin Servo Functions
 void finOpen() {
   playSFX(finOpenSFX);
-  finservo.write(finServoMinPos);
-  delay(finDelay);                           
+  finservo.write(finExtendedPos);
+  delay(finDelay);
 }
 
 void finClose() {
   playSFX(finCloseSFX);
-  finservo.write(finServoMaxPos);
+  finservo.write(finRetractedPos);
   delay(finDelay);
 }
 
+void finFire() {
+  finservo.write(finRetractedPos);
+  delay(finDelay/2);
+  finservo.write(finExtendedPos);
+  delay(finDelay);
+}
 
 // Head Servo
 Servo headservo;                          // DS3218MG servo used to rotate head
@@ -228,6 +234,7 @@ void ledsOff() {
 
 // Setup Function
 void initializeLights() {
+  Serial.println(F("Initializing lasers and LEDs"));
   pinMode(laserTransistorPin, OUTPUT);
   
   FastLED.addLeds<NEOPIXEL, ledDataPin>(nozzleLeds, ledNum);
@@ -239,47 +246,53 @@ void initializeLights() {
 
 // State Definitions
 bool triggerPrimed = false;
-bool triggerFired = false;
 
 // Functions
-void primeTrigger() {
-  if (!triggerFired) {
-    finOpen();
-    ledsOn(CRGB::Cyan);
-    lasersOn();
-    triggerPrimed = true;                   // Enables main trigger action
-  } else {
-    finOpen();
-    playSFX(errorSFX);
-    finClose();
+void startup() {
+  delay(2000);
+  playSFX(startupSFX);
+
+  finOpen();
+  finClose();
+
+  finOpen();
+  headservo.write(0);
+  delay(headDelay);
+  finClose();
+
+  rotateHead();
+  rotateHead();
+  if (headservo.read() != 0) {
+    rotateHead();
   }
+}
+
+void primeTrigger() {
+  finOpen();
+  ledsOn(CRGB::Cyan);
+  lasersOn();
+  // triggerPrimed = true;                   // Enables main trigger action
 }
 
 void unprimeTrigger() {
   lasersOff();
   ledsOff();
   finClose();
-  triggerPrimed = false;                  // Locks main trigger action
+  // triggerPrimed = false;                  // Locks main trigger action
 }
 
-void fireTrigger () {                     // Initiates firing action, requires trigger priming
-  if (triggerPrimed) {
+void fireTrigger() {                     // Initiates firing action, requires trigger priming
+  if (innerTrigger.isPressed()) {
     ledsOn(CRGB::Orange);
-    finOpen();
-    playSFX(fire1SFX);
     lasersOff();
-    finClose();
+    playSFX(fire1SFX);
+    finFire();
     // Slow fade LEDs
-    triggerFired = true;
     delay(2000);
     ledsOff();
   } else {
     playSFX(errorSFX);
   }
-}
-
-void resetTrigger() {
-    triggerFired = false;
 }
 
 /*
