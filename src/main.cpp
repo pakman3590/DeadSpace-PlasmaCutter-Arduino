@@ -21,9 +21,9 @@ ezButton selectorSwitch(selectorPin);
 void initializeInputs() {
   Serial.println(F("Initializing Inputs"));
 
-  innerTrigger.setDebounceTime(50);
-  mainTrigger.setDebounceTime(50);
-  selectorSwitch.setDebounceTime(50);
+  innerTrigger.setDebounceTime(10);
+  mainTrigger.setDebounceTime(10);
+  selectorSwitch.setDebounceTime(10);
 }
 
 /*
