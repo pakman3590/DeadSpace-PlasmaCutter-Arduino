@@ -67,6 +67,12 @@ void initializeDFPlayer() {
   The DS3218MG is driven by a digital PWM pin and powered directly off the 7.4V power from the battery.
 */
 
+// Calibration Potentiometers
+const uint8_t finTrimMinPin = 29;
+const uint8_t finTrimMaxPin = 28;
+const uint8_t headTrimMinPin = 27;
+const uint8_t headTrimMaxPin = 26;
+
 // Fin Servo
 Servo finservo;                         // MG90S servo used to actuate retracting fins
 const uint8_t finServoPin = 9;
