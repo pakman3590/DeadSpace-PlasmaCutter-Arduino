@@ -9,9 +9,9 @@
 */
 
 // Definitions
-const int trigger1Pin = 8;              // Inner trigger
-const int trigger2Pin = 7;              // Outer trigger
-const int selectorPin = 6;              // Rotation selector
+const uint8_t trigger1Pin = 8;              // Inner trigger
+const uint8_t trigger2Pin = 7;              // Outer trigger
+const uint8_t selectorPin = 6;              // Rotation selector
 
 // Setup Function
 ezButton innerTrigger(trigger1Pin);
@@ -23,7 +23,7 @@ void initializeInputs() {
 
   innerTrigger.setDebounceTime(10);
   mainTrigger.setDebounceTime(10);
-  selectorSwitch.setDebounceTime(10);
+  selectorSwitch.setDebounceTime(500);
 }
 
 /*
@@ -33,16 +33,16 @@ void initializeInputs() {
 // Definitions
 DFPlayerMini_Fast player;
 
-const int defaultVol = 30;
+const uint8_t defaultVol = 30;
 
 // Track assignments
-const int startupSFX = 1;
-const int finOpenSFX = 2;
-const int finCloseSFX = 3;
-const int rotateSFX = 4;
-const int errorSFX = 5;
-const int fire1SFX = 6;
-const int fire2SFX = 7;
+const uint8_t startupSFX = 1;
+const uint8_t finOpenSFX = 2;
+const uint8_t finCloseSFX = 3;
+const uint8_t rotateSFX = 4;
+const uint8_t errorSFX = 5;
+const uint8_t fire1SFX = 6;
+const uint8_t fire2SFX = 7;
 
 // Functions
 void playSFX(int track) {
@@ -69,11 +69,11 @@ void initializeDFPlayer() {
 
 // Fin Servo
 Servo finservo;                         // MG90S servo used to actuate retracting fins
-const int finServoPin = 9;
-const int finExtendedPos = 0;
-const int finRetractedPos = 165;
+const uint8_t finServoPin = 9;
+const uint8_t finExtendedPos = 0;
+const uint8_t finRetractedPos = 165;
 
-const int finDelay = 325;               // Approx delay @ 5V
+const uint16_t finDelay = 325;               // Approx delay @ 5V
 
 // Fin Servo Functions
 void finOpen() {
@@ -97,24 +97,23 @@ void finFire() {
 
 // Head Servo
 Servo headservo;                          // DS3218MG servo used to rotate head
-const int headServoPin = 10;
-const int headServoMinPulse = 544;        // TODO Check if default pulse widths will work
-const int headServoMaxPulse = 2400;
-const int headServoMinPos = 0;
-const int headServoMaxPos = 90;
+const uint8_t headServoPin = 10;
+const uint16_t headServoMinPulse = 544;        // TODO Check if default pulse widths will work
+const uint16_t headServoMaxPulse = 2400;
+const uint8_t headServoMinPos = 3;
+const uint8_t headServoMaxPos = 67;
 
-const int headDelay = 500;                // TODO Verify head delay @ working voltage (~7V)
+const uint16_t headDelay = 500;                // TODO Verify head delay @ working voltage (~7V)
 
-// Head Servo Functions
 void rotateHead() {
   int currPos = headservo.read();
 
   finOpen();                              // Extends fins to allow for head rotation
 
   playSFX(rotateSFX);
-  if (currPos == 0) {
-    headservo.write(90);
-  } else headservo.write(0);
+  if (currPos == headServoMinPos) {
+    headservo.write(headServoMaxPos);
+  } else headservo.write(headServoMinPos);
 
   delay(headDelay);
 
@@ -134,17 +133,16 @@ void initializeServos() {
   LIGHTS
 */
 // Definitions
-const int laserTransistorPin = 3;
+const uint8_t laserTransistorPin = 3;
 
-const int ledDataPin = 2;
-const int ledNum = 3;
+const uint8_t ledDataPin = 2;
+const uint8_t ledNum = 3;
 
 CRGB nozzleLeds[ledNum];
 
 // Functions
 void lasersOn() {
   digitalWrite(laserTransistorPin, HIGH);
-
 }
 
 void lasersOff() {
@@ -191,9 +189,6 @@ void startup() {
 
   rotateHead();
   rotateHead();
-  if (headservo.read() != 0) {
-    rotateHead();
-  }
 }
 
 void primeTrigger() {
@@ -229,15 +224,14 @@ void fireTrigger() {                     // Initiates firing action, requires tr
 */
 void setup() {
   Serial.begin(115200);
+  pinMode(LED_BUILTIN, OUTPUT);
 
   initializeInputs();
   initializeDFPlayer();
   initializeServos();
   initializeLights();
 
-  // TODO Startup sequence
-
-  pinMode(LED_BUILTIN, OUTPUT);
+  startup();
 }
 
 void loop() {
@@ -245,13 +239,6 @@ void loop() {
   innerTrigger.loop();
   mainTrigger.loop();
   selectorSwitch.loop();
-
-  // Servo
-
-  // DFPlayer
-  // if (myDFPlayer.available()) {
-  //   printDetail(myDFPlayer.readType(), myDFPlayer.read());
-  // }
 
   if (innerTrigger.isPressed()) {
     primeTrigger();
