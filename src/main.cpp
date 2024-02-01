@@ -167,13 +167,19 @@ void initializeServos() {
 /*
   LIGHTS
 */
-// Definitions
+// Declarations
 const uint8_t laserTransistorPin = 3;
 
 const uint8_t ledDataPin = 2;
 const uint8_t ledNum = 3;
 
+unsigned long ledRefreshInterval = 10000;
+
 CRGB nozzleLeds[ledNum];
+
+// Variables
+bool ledStatus = false;
+unsigned long lastLEDRefreshMillis = 0;
 
 // Functions
 void lasersOn() {
@@ -184,14 +190,20 @@ void lasersOff() {
   digitalWrite(laserTransistorPin, LOW);
 }
 
-void ledsOn(CRGB color) {
-  nozzleLeds[0] = color;
-  FastLED.show();
+void ledsOn(CRGB newColor) {
+  if (!ledStatus) {
+    nozzleLeds[0] = newColor;
+    FastLED.show();
+    ledStatus = true;
+  }
 }
 
 void ledsOff() {
-  nozzleLeds[0] = CRGB::Black;
-  FastLED.show();
+  if (ledStatus) {
+    nozzleLeds[0] = CRGB::Black;
+    FastLED.show();
+    ledStatus = false;
+  }
 }
 
 // Setup Function
@@ -228,14 +240,14 @@ void startup() {
 
 void primeTrigger() {
   finOpen();
-  // ledsOn(CRGB::Cyan);
+  ledsOn(CRGB::Cyan);
   // lasersOn();
   // triggerPrimed = true;                   // Enables main trigger action
 }
 
 void unprimeTrigger() {
   // lasersOff();
-  // ledsOff();
+  ledsOff();
   finClose();
   // triggerPrimed = false;                  // Locks main trigger action
 }
@@ -272,10 +284,10 @@ void setup() {
 void loop() {
   currMillis = millis();
 
-  if (finMoving) {
+  if (ledStatus) {
     digitalWrite(LED_BUILTIN, HIGH);
   }
-  if (!finMoving) {
+  if (!ledStatus) {
         digitalWrite(LED_BUILTIN, LOW);
   }
 
