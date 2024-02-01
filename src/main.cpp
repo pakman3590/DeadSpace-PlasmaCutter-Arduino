@@ -4,6 +4,13 @@
 #include <FastLED.h>
 #include <DFPlayerMini_Fast.h>
 
+
+/*
+  GLOBAL VARIABLES
+*/
+
+unsigned long currMillis = 0;
+
 /*
   INPUTS
 */
@@ -14,16 +21,20 @@ const uint8_t trigger2Pin = 7;              // Outer trigger
 const uint8_t selectorPin = 6;              // Rotation selector
 
 // Setup Function
-ezButton innerTrigger(trigger1Pin);
-ezButton mainTrigger(trigger2Pin);
-ezButton selectorSwitch(selectorPin);
+// ezButton innerTrigger(trigger1Pin);
+// ezButton mainTrigger(trigger2Pin);
+// ezButton selectorSwitch(selectorPin);
 
 void initializeInputs() {
   Serial.println(F("Initializing Inputs"));
 
-  innerTrigger.setDebounceTime(10);
-  mainTrigger.setDebounceTime(10);
-  selectorSwitch.setDebounceTime(500);
+  // innerTrigger.setDebounceTime(10);
+  // mainTrigger.setDebounceTime(10);
+  // selectorSwitch.setDebounceTime(500);
+
+  pinMode(trigger1Pin, INPUT_PULLUP);
+  pinMode(trigger2Pin, INPUT_PULLUP);
+  pinMode(selectorPin, INPUT_PULLUP);
 }
 
 /*
@@ -73,26 +84,39 @@ const uint8_t finServoPin = 9;
 const uint8_t finExtendedPos = 0;
 const uint8_t finRetractedPos = 165;
 
-const uint16_t finDelay = 325;               // Approx delay @ 5V
+const uint16_t finInterval = 325;               // Approx delay @ 5V
+
+uint8_t finPos = finRetractedPos;
+unsigned long lastFinMillis = 0;
+bool finMoving = false;
 
 // Fin Servo Functions
 void finOpen() {
-  playSFX(finOpenSFX);
-  finservo.write(finExtendedPos);
-  delay(finDelay);
+  if (!finMoving && finPos != finExtendedPos) {
+      finservo.write(finExtendedPos);
+      finPos = finExtendedPos;
+      finMoving = true;
+      lastFinMillis = currMillis;
+    }
+  if (finMoving) {
+    if (currMillis >= lastFinMillis + finInterval) {
+      finMoving = false;
+    }
+  }
 }
 
 void finClose() {
-  playSFX(finCloseSFX);
-  finservo.write(finRetractedPos);
-  delay(finDelay);
-}
-
-void finFire() {
-  finservo.write(finRetractedPos);
-  delay(finDelay/2);
-  finservo.write(finExtendedPos);
-  delay(finDelay);
+  if (!finMoving && finPos != finRetractedPos) {
+      finservo.write(finRetractedPos);
+      finPos = finRetractedPos;
+      finMoving = true;
+      lastFinMillis = currMillis;
+    }
+  if (finMoving) {
+    if (currMillis >= lastFinMillis + finInterval) {
+      finMoving = false;
+    }
+  }
 }
 
 // Head Servo
@@ -103,7 +127,11 @@ const uint16_t headServoMaxPulse = 2400;
 const uint8_t headServoMinPos = 3;
 const uint8_t headServoMaxPos = 67;
 
-const uint16_t headDelay = 500;                // TODO Verify head delay @ working voltage (~7V)
+const uint16_t headInterval = 500;                // TODO Verify head delay @ working voltage (~7V)
+
+uint8_t headPos = headServoMinPos;
+unsigned long lastHeadMillis = 0;
+bool headMoving = false;
 
 void rotateHead() {
   int currPos = headservo.read();
@@ -115,7 +143,7 @@ void rotateHead() {
     headservo.write(headServoMaxPos);
   } else headservo.write(headServoMinPos);
 
-  delay(headDelay);
+  delay(headInterval);
 
   finClose();
 }
@@ -126,6 +154,13 @@ void initializeServos() {
 
   finservo.attach(finServoPin);
   headservo.attach(headServoPin, headServoMinPulse, headServoMaxPulse);
+
+  finservo.write(finExtendedPos);           // Sets fins and head to home positions
+  delay(finInterval);
+  headservo.write(headServoMinPos);
+  delay(headInterval);
+  finservo.write(finRetractedPos);
+  delay(finInterval);
 }
 
 
@@ -184,7 +219,7 @@ void startup() {
 
   finOpen();
   headservo.write(0);
-  delay(headDelay);
+  delay(headInterval);
   finClose();
 
   rotateHead();
@@ -193,30 +228,30 @@ void startup() {
 
 void primeTrigger() {
   finOpen();
-  ledsOn(CRGB::Cyan);
-  lasersOn();
+  // ledsOn(CRGB::Cyan);
+  // lasersOn();
   // triggerPrimed = true;                   // Enables main trigger action
 }
 
 void unprimeTrigger() {
-  lasersOff();
-  ledsOff();
+  // lasersOff();
+  // ledsOff();
   finClose();
   // triggerPrimed = false;                  // Locks main trigger action
 }
 
 void fireTrigger() {                     // Initiates firing action, requires trigger priming
-  if (innerTrigger.isPressed()) {
-    ledsOn(CRGB::Orange);
-    lasersOff();
-    playSFX(fire1SFX);
-    finFire();
-    // Slow fade LEDs
-    delay(2000);
-    ledsOff();
-  } else {
-    playSFX(errorSFX);
-  }
+  // if (innerTrigger.isPressed()) {
+  //   ledsOn(CRGB::Orange);
+  //   lasersOff();
+  //   playSFX(fire1SFX);
+  //   // finFire();
+  //   // Slow fade LEDs
+  //   delay(2000);
+  //   ledsOff();
+  // } else {
+  //   playSFX(errorSFX);
+  // }
 }
 
 /*
@@ -227,31 +262,48 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
 
   initializeInputs();
-  initializeDFPlayer();
+  // initializeDFPlayer();
   initializeServos();
   initializeLights();
 
-  startup();
+  // startup();
 }
 
 void loop() {
-  // Buttons
-  innerTrigger.loop();
-  mainTrigger.loop();
-  selectorSwitch.loop();
+  currMillis = millis();
 
-  if (innerTrigger.isPressed()) {
+  if (finMoving) {
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+  if (!finMoving) {
+        digitalWrite(LED_BUILTIN, LOW);
+  }
+
+  byte trigger1State = digitalRead(trigger1Pin);
+  // byte trigger2State = digitalRead(trigger2Pin);
+  // byte selectorState = digitalRead(selectorPin);
+  if (trigger1State == LOW) {
     primeTrigger();
   }
-  if (innerTrigger.isReleased()) {
+  if (trigger1State == HIGH) {
     unprimeTrigger();
   }
 
-  if (mainTrigger.isPressed()) {
-    fireTrigger();
-  }
+  // Buttons
+  // innerTrigger.loop();
+  // mainTrigger.loop();
+  // selectorSwitch.loop();
 
-  if (selectorSwitch.isPressed()) {
-    rotateHead();
-  }
+  // if (innerTrigger.isPressed()) {
+  //   primeTrigger();
+  // }
+  // if (innerTrigger.isReleased()) {
+  //   unprimeTrigger();
+  // }
+  // if (mainTrigger.isPressed()) {
+  //   fireTrigger();
+  // }
+  // if (selectorSwitch.isPressed()) {
+  //   rotateHead();
+  // }
 }
