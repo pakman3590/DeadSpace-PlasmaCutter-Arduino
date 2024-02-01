@@ -73,17 +73,22 @@ void initializeDFPlayer() {
 Servo finservo;                         // MG90S servo used to actuate retracting fins
 const uint8_t finServoPin = 9;
 const uint8_t finExtendedPos = 0;
+const uint8_t finFiringPos = 80;        // TODO Tune firing position
 const uint8_t finRetractedPos = 165;
 
 const uint16_t finInterval = 250;               // Approx delay @ 5V (325)
+const uint16_t finFiringInterval = 125;         // TODO Tune interval
 
 uint8_t finPos = finRetractedPos;
 unsigned long lastFinMillis = 0;
 bool finMoving = false;
-bool finReady = false;
+bool finExtended = false;
+
+bool readyFinRetract = false;
+bool readyFinExtend = false;
 
 // Fin Servo Functions
-void finOpen() {
+void finExtend() {
   if (!finMoving && finPos != finExtendedPos) {
       finservo.write(finExtendedPos);
       finPos = finExtendedPos;
@@ -93,12 +98,13 @@ void finOpen() {
   if (finMoving) {
     if (currMillis >= lastFinMillis + finInterval) {
       finMoving = false;
-      finReady = true;
+      finExtended = true;
+      Serial.println(F("finExtend complete"));
     }
   }
 }
 
-void finClose() {
+void finRetract() {
   if (!finMoving && finPos != finRetractedPos) {
       finservo.write(finRetractedPos);
       finPos = finRetractedPos;
@@ -108,7 +114,8 @@ void finClose() {
   if (finMoving) {
     if (currMillis >= lastFinMillis + finInterval) {
       finMoving = false;
-      finReady = false;
+      finExtended = false;
+      Serial.println(F("finHeadRetract complete"));
     }
   }
 }
@@ -116,8 +123,8 @@ void finClose() {
 // Head Servo
 Servo headservo;                          // DS3218MG servo used to rotate head
 const uint8_t headServoPin = 10;
-const uint16_t headServoMinPulse = 544;        // TODO Check if default pulse widths will work
-const uint16_t headServoMaxPulse = 2400;
+const uint16_t headServoMinPulse = 500;
+const uint16_t headServoMaxPulse = 2500;
 const uint8_t headServoMinPos = 3;
 const uint8_t headServoMaxPos = 67;
 
@@ -127,15 +134,14 @@ bool initHeadRotate = false;
 uint8_t headPos = headServoMinPos;
 unsigned long lastHeadMillis = 0;
 bool headMoving = false;
-bool readyFinRetract = false;
 
 void rotateHead() {
-  if (!finReady) {
-    finOpen();                              // Extends fins to allow for head rotation
+  if (!finExtended) {
+    finExtend();                              // Extends fins to allow for head rotation
   }
 
   // // playSFX(rotateSFX);
-  if (finReady && (finPos == finExtendedPos)) {
+  if (finExtended && (finPos == finExtendedPos)) {
     if (!headMoving) {
       switch(headPos) {
         case headServoMaxPos:
@@ -161,9 +167,9 @@ void rotateHead() {
   }
 
   if (readyFinRetract) {
-    finClose();
+    finRetract();
     delay(500);
-    if (!finReady) {
+    if (!finExtended) {
       readyFinRetract = false;
       initHeadRotate = false;
     }
@@ -212,8 +218,8 @@ void lasersOff() {
   digitalWrite(laserTransistorPin, LOW);
 }
 
-void ledsOn(CRGB newColor) {
-  if (!ledStatus) {
+void ledsOn(CRGB newColor, bool isChange = false) {
+  if (!ledStatus || isChange) {
     nozzleLeds[0] = newColor;
     FastLED.show();
     ledStatus = true;
@@ -242,26 +248,27 @@ void initializeLights() {
 
 // State Definitions
 bool triggerPrimed = false;
+bool firing = false;
 
 // Functions
 void startup() {
   delay(2000);
   playSFX(startupSFX);
 
-  finOpen();
-  finClose();
+  finExtend();
+  finRetract();
 
-  finOpen();
+  finExtend();
   headservo.write(0);
   delay(headInterval);
-  finClose();
+  finRetract();
 
   rotateHead();
   rotateHead();
 }
 
 void primeTrigger() {
-  finOpen();
+  finExtend();
   ledsOn(CRGB::Cyan);
   // lasersOn();
   triggerPrimed = true;                   // Enables main trigger action
@@ -270,22 +277,60 @@ void primeTrigger() {
 void unprimeTrigger() {
   // lasersOff();
   ledsOff();
-  finClose();
+  finRetract();
   triggerPrimed = false;                  // Locks main trigger action
 }
 
+bool finFireRetractReady = false;
+bool finFireExtendReady = false;
+
 void fireTrigger() {                     // Initiates firing action, requires trigger priming
-  // if (innerTrigger.isPressed()) {
-  //   ledsOn(CRGB::Orange);
-  //   lasersOff();
-  //   playSFX(fire1SFX);
-  //   // finFire();
-  //   // Slow fade LEDs
-  //   delay(2000);
-  //   ledsOff();
-  // } else {
-  //   playSFX(errorSFX);
-  // }
+  if (!finFireRetractReady) {
+    if (!finMoving && finPos != finFiringPos) {
+      finservo.write(finFiringPos);
+      finPos = finFiringPos;
+      finMoving = true;
+      lastFinMillis = currMillis;
+    }
+    if (finMoving) {
+      if (currMillis >= lastFinMillis + finFiringInterval) {
+        finMoving = false;
+        finFireRetractReady = true;
+      }
+    }
+  }
+
+  // // playSFX(rotateSFX);
+  if (finFireRetractReady && (finPos == finFiringPos)) {
+    ledsOff();
+    ledsOn(CRGB::Orange, true);
+    lasersOff();
+    finFireExtendReady = true;
+  }
+
+  if (finFireExtendReady) {
+    if (!finMoving && finPos != finExtendedPos) {
+      finservo.write(finExtendedPos);
+      finPos = finExtendedPos;
+      finMoving = true;
+      lastFinMillis = currMillis;
+    }
+    if (finMoving) {
+      if (currMillis >= lastFinMillis + finFiringInterval) {
+        finMoving = false;
+        finFireRetractReady = true;
+      }
+    }
+    // delay(50);
+    if (finFireRetractReady) {
+      delay(500);               // TODO implement LED fadeout
+      ledsOff();
+      delay(200);               // TODO clean up firing rearm implementation
+      finFireRetractReady = false;
+      finFireExtendReady = false;
+      firing = false;
+    }
+  }
 }
 
 /*
@@ -306,30 +351,37 @@ void setup() {
 void loop() {
   currMillis = millis();
 
-  if (initHeadRotate) {
+  if (firing) {
     digitalWrite(LED_BUILTIN, HIGH);
   }
-  if (!initHeadRotate) {
+  if (!firing) {
     digitalWrite(LED_BUILTIN, LOW);
   }
 
   byte trigger1State = digitalRead(trigger1Pin);
-  // byte trigger2State = digitalRead(trigger2Pin);
+  byte trigger2State = digitalRead(trigger2Pin);
   byte selectorState = digitalRead(selectorPin);
-  if (trigger1State == LOW) {
+  if (trigger1State == LOW && !firing) {
     primeTrigger();
   }
-  if (trigger1State == HIGH) {
+  if (trigger1State == HIGH && !firing) {
     if (!initHeadRotate) {
       unprimeTrigger();
     }
   }
 
-  if (selectorState == LOW) {
+  if (trigger2State == LOW && triggerPrimed) {
+    firing = true;
+  }
+
+  if (selectorState == LOW && !firing) {
     initHeadRotate = true;
   }
 
   if (initHeadRotate) {
     rotateHead();
+  }
+  if (firing) {
+    fireTrigger();
   }
 }
