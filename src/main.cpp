@@ -18,8 +18,7 @@ const uint8_t trigger1Pin = 8;              // Inner trigger
 const uint8_t trigger2Pin = 7;              // Outer trigger
 const uint8_t selectorPin = 6;              // Rotation selector
 
-// Setup Function
-
+// Setup
 void initializeInputs() {
   Serial.println(F("Initializing Inputs"));
 
@@ -70,17 +69,17 @@ void initializeDFPlayer() {
 */
 
 // Calibration Potentiometers
-const uint8_t finTrimMinPin = 29;
-const uint8_t finTrimMaxPin = 28;
-const uint8_t headTrimMinPin = 27;
-const uint8_t headTrimMaxPin = 26;
+// const uint8_t finMinTrimPotPin = A0;           // Adjusts extended fin position
+// const uint8_t finMaxTrimPotPin = A1;           // Adjusts retracted fin position
+// const uint8_t headMinTrimPotPin = A2;          // Adjusts home (vertical) head position
+// const uint8_t headMaxTrimPotPin = A3;          // Adjusts rotated (horizontal) head position
 
 // Fin Servo
 Servo finservo;                         // MG90S servo used to actuate retracting fins
 const uint8_t finServoPin = 9;
-const uint8_t finExtendedPos = 0;
 const uint8_t finFiringPos = 80;        // TODO Tune firing position
-const uint8_t finRetractedPos = 165;
+uint8_t finExtendedPos = 0;
+uint8_t finRetractedPos = 165;
 
 const uint16_t finInterval = 250;               // Approx delay @ 5V (325)
 const uint16_t finFiringInterval = 125;         // TODO Tune interval
@@ -131,8 +130,9 @@ Servo headservo;                          // DS3218MG servo used to rotate head
 const uint8_t headServoPin = 10;
 const uint16_t headServoMinPulse = 500;
 const uint16_t headServoMaxPulse = 2500;
-const uint8_t headServoMinPos = 3;
-const uint8_t headServoMaxPos = 67;
+
+uint8_t headServoMinPos = 3;
+uint8_t headServoMaxPos = 67;
 
 const uint16_t headInterval = 350;                // TODO Verify head delay @ working voltage (~7V)
 
@@ -148,21 +148,17 @@ void rotateHead() {
 
   // // playSFX(rotateSFX);
   if (finExtended && (finPos == finExtendedPos)) {
-    if (!headMoving) {
-      switch(headPos) {
-        case headServoMaxPos:
-          headservo.write(headServoMinPos);
-          lastHeadMillis = currMillis;
-          headPos = headServoMinPos;
-          headMoving = true;
-          break;
-        case headServoMinPos:
-          headservo.write(headServoMaxPos);
-          lastHeadMillis = currMillis;
-          headPos = headServoMaxPos;
-          headMoving = true;
-          break;
-      }
+    if (!headMoving && headPos == headServoMaxPos) {
+      headservo.write(headServoMinPos);
+      lastHeadMillis = currMillis;
+      headPos = headServoMinPos;
+      headMoving = true;
+    }
+    if (!headMoving && headPos == headServoMinPos) {
+      headservo.write(headServoMaxPos);
+      lastHeadMillis = currMillis;
+      headPos = headServoMaxPos;
+      headMoving = true;
     }
     if (headMoving) {
       if (currMillis >= lastHeadMillis + headInterval) {
@@ -252,11 +248,39 @@ void initializeLights() {
   ACTIONS
 */
 
-// State Definitions
-bool triggerPrimed = false;
-bool firing = false;
+// Calibration
+// bool calibrating = false;
+// uint8_t calibrationStep = 0;
+// bool trimUpdated = false;
 
-// Functions
+// uint16_t currFinMinValue = 0;
+// uint16_t currFinMaxValue = 0;
+// uint16_t currHeadMinValue = 0;
+// uint16_t currHeadMaxValue = 0;
+
+// void calibrationMode() {
+//   const uint16_t finMaxReading = analogRead(A1);
+
+//   switch (calibrationStep) {
+//     case 0:
+//       const uint16_t finMinReading = analogRead(A0);
+//       if (!trimUpdated) {
+//         finExtendedPos = finMinReading;
+//       }
+//     case 1:
+//       const uint16_t finMaxReading = analogRead(A1);
+
+//     case 2:
+//       const uint16_t headMinReading = analogRead(A2);
+
+//     case 3:
+//       const uint16_t headMaxReading = analogRead(A3);
+//     case 4:
+//   }
+// }
+
+// Startup Sequence
+
 void startup() {
   delay(2000);
   playSFX(startupSFX);
@@ -272,6 +296,10 @@ void startup() {
   rotateHead();
   rotateHead();
 }
+
+// Trigger Control
+bool triggerPrimed = false;
+bool firing = false;
 
 void primeTrigger() {
   finExtend();
@@ -357,10 +385,10 @@ void setup() {
 void loop() {
   currMillis = millis();
 
-  if (firing) {
+  if (headMoving) {
     digitalWrite(LED_BUILTIN, HIGH);
   }
-  if (!firing) {
+  if (!headMoving) {
     digitalWrite(LED_BUILTIN, LOW);
   }
 
