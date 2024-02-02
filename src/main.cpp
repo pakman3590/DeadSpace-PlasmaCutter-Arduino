@@ -17,6 +17,7 @@ unsigned long currMillis = 0;
 const uint8_t trigger1Pin = 8;              // Inner trigger
 const uint8_t trigger2Pin = 7;              // Outer trigger
 const uint8_t selectorPin = 6;              // Rotation selector
+const uint8_t calibrationPin = 18;          // Calibration mode button
 
 // Setup
 void initializeInputs() {
@@ -25,6 +26,7 @@ void initializeInputs() {
   pinMode(trigger1Pin, INPUT_PULLUP);
   pinMode(trigger2Pin, INPUT_PULLUP);
   pinMode(selectorPin, INPUT_PULLUP);
+  pinMode(calibrationPin, INPUT_PULLUP);
 }
 
 /*
@@ -69,10 +71,10 @@ void initializeDFPlayer() {
 */
 
 // Calibration Potentiometers
-// const uint8_t finMinTrimPotPin = A0;           // Adjusts extended fin position
-// const uint8_t finMaxTrimPotPin = A1;           // Adjusts retracted fin position
-// const uint8_t headMinTrimPotPin = A2;          // Adjusts home (vertical) head position
-// const uint8_t headMaxTrimPotPin = A3;          // Adjusts rotated (horizontal) head position
+const uint8_t finMinTrimPotPin = A0;           // Adjusts extended fin position
+const uint8_t finMaxTrimPotPin = A1;           // Adjusts retracted fin position
+const uint8_t headMinTrimPotPin = A2;          // Adjusts home (vertical) head position
+const uint8_t headMaxTrimPotPin = A3;          // Adjusts rotated (horizontal) head position
 
 // Fin Servo
 Servo finservo;                         // MG90S servo used to actuate retracting fins
@@ -236,6 +238,8 @@ void ledsOff() {
   }
 }
 
+// TODO Implement LED Blinker to indicate which calibration mode is currently running
+
 // Setup Function
 void initializeLights() {
   Serial.println(F("Initializing lasers and LEDs"));
@@ -249,35 +253,57 @@ void initializeLights() {
 */
 
 // Calibration
-// bool calibrating = false;
-// uint8_t calibrationStep = 0;
-// bool trimUpdated = false;
+bool calibrating = false;
+uint8_t calibrationStep = 0;
+const unsigned long trimUpdateInterval = 200;
+unsigned long calibrationStartMillis = 0;
+const unsigned long calibrationTimeout = 60000;
 
-// uint16_t currFinMinValue = 0;
-// uint16_t currFinMaxValue = 0;
-// uint16_t currHeadMinValue = 0;
-// uint16_t currHeadMaxValue = 0;
+uint16_t currFinMinValue = 0;
+uint16_t currFinMaxValue = 0;
+uint16_t currHeadMinValue = 0;
+uint16_t currHeadMaxValue = 0;
 
-// void calibrationMode() {
-//   const uint16_t finMaxReading = analogRead(A1);
+void calibrationMode() {
+  switch (calibrationStep) {
+    // The fins will be in retracted position initially
+    case 0:
+      finservo.write(finRetractedPos);
+      delay(200);
+      const uint16_t finMaxReading = analogRead(finMaxTrimPotPin);
+      const uint8_t newPos = map(finMaxReading, 0, 1023, 0, 180);
+      finRetractedPos = newPos;
+    case 1:
+      finservo.write(finExtendedPos);
+      delay(200);
+      const uint16_t finMinReading = analogRead(finMinTrimPotPin);
+      const uint8_t newPos = map(finMinReading, 0, 1023, 0, 180);
+      finExtendedPos = newPos;
+      break;
+    case 2:
+      headservo.write(headServoMinPos);
+      delay(200);
+      const uint16_t headMinReading = analogRead(headMinTrimPotPin);
+      const uint8_t newPos = map(headMinReading, 0, 1023, 0, 180);
+      headServoMinPos = newPos;
+      break;
+    case 3:
+      headservo.write(headServoMaxPos);
+      delay(200);
+      const uint16_t headMaxReading = analogRead(headMaxTrimPotPin);
+      const uint8_t newPos = map(headMaxReading, 0, 1023, 0, 180);
+      headServoMaxPos = newPos;
+      break;
+    case 4:
+      // TODO Implement restart sequence
+      headservo.write(headServoMinPos);
+      delay(300);
+      finservo.write(finRetractedPos);
+      delay(250);
+      calibrating = false;
+  }
 
-//   switch (calibrationStep) {
-//     case 0:
-//       const uint16_t finMinReading = analogRead(A0);
-//       if (!trimUpdated) {
-//         finExtendedPos = finMinReading;
-//       }
-//     case 1:
-//       const uint16_t finMaxReading = analogRead(A1);
-
-//     case 2:
-//       const uint16_t headMinReading = analogRead(A2);
-
-//     case 3:
-//       const uint16_t headMaxReading = analogRead(A3);
-//     case 4:
-//   }
-// }
+}
 
 // Startup Sequence
 
@@ -382,6 +408,9 @@ void setup() {
   // startup();
 }
 
+const unsigned long calButtonDebounceInterval = 1000;
+unsigned long lastCalButtonPress = 0;
+
 void loop() {
   currMillis = millis();
 
@@ -392,9 +421,12 @@ void loop() {
     digitalWrite(LED_BUILTIN, LOW);
   }
 
-  byte trigger1State = digitalRead(trigger1Pin);
-  byte trigger2State = digitalRead(trigger2Pin);
-  byte selectorState = digitalRead(selectorPin);
+  uint8_t trigger1State = digitalRead(trigger1Pin);
+  uint8_t trigger2State = digitalRead(trigger2Pin);
+  uint8_t selectorState = digitalRead(selectorPin);
+  uint8_t calibrationState = digitalRead(calibrationPin);
+
+  // TODO make the state management more consistent; button presses should not directly call action functions
   if (trigger1State == LOW && !firing) {
     primeTrigger();
   }
@@ -412,10 +444,24 @@ void loop() {
     initHeadRotate = true;
   }
 
-  if (initHeadRotate) {
-    rotateHead();
+  if (calibrationState == LOW) {
+    if (currMillis >= lastCalButtonPress + calButtonDebounceInterval) {
+      if (calibrating) {
+        calibrationStep ++;
+      } else {
+        calibrating = true;
+      }
+    }
   }
-  if (firing) {
-    fireTrigger();
+
+  if (calibrating) {
+    calibrationMode();
+  } else {
+    if (initHeadRotate) {
+      rotateHead();
+    }
+    if (firing) {
+      fireTrigger();
+    }
   }
 }
